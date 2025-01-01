@@ -1,0 +1,378 @@
+#!/bin/bash
+
+### ABOUT
+# YouTube media downloader "YouLinux" made by BuriXon-code (c) 2025
+# version 1.0 beta
+
+### VARIABLES
+audio_flag=0
+video_flag=0
+output_name=""
+url=""
+playlist_url=""
+file=""
+directory="$(pwd)"
+is_playlist=0
+ext=""
+cookies=""
+PIDS=()
+
+### COLORS/SETTINGS
+NC="\033[0m"
+ANIMATION="\033[48;5;160m\033[97m"
+INFO="\033[38;5;226m"
+INFOc="\033[38;5;230m"
+ERROR="\033[38;5;196m"
+ERRORc="\033[38;5;210m"
+SUCCESS="\033[38;5;46m"
+SUCCESSc="\033[38;5;48m"
+CONTENT="\033[38;5;129m"
+CONTENTc="\033[38;5;105m"
+LINK="\033[38;5;129m"
+LINKc="\033[38;5;105m"
+
+echo -e "\e[?25l\n\n"
+
+    j=0
+    while [[ $j -le 12 ]]; do
+        case $j in
+            0) echo -ne "\e[1A\r ${ANIMATION}[ ▶ ]${NC} YouLinux - YouTube downloader" ;;
+            1) echo -ne "\r ${ANIMATION}[ ► ]${NC} YouLinux - YouTube downloader" ;;
+            2) echo -ne "\r ${ANIMATION}[ ▸ ]${NC} YouLinux - YouTube downloader" ;;
+            3) echo -ne "\r ${ANIMATION}[ - ]${NC} YouLinux - YouTube downloader" ;;
+            4) echo -ne "\r ${ANIMATION}[ ▹ ]${NC} YouLinux - YouTube downloader" ;;
+            5) echo -ne "\r ${ANIMATION}[ ▻ ]${NC} YouLinux - YouTube downloader" ;;
+            6) echo -ne "\r ${ANIMATION}[ ▷ ]${NC} YouLinux - YouTube downloader" ;;
+            7) echo -ne "\r ${ANIMATION}[ ▻ ]${NC} YouLinux - YouTube downloader" ;;
+            8) echo -ne "\r ${ANIMATION}[ ▹ ]${NC} YouLinux - YouTube downloader" ;;
+            9) echo -ne "\r ${ANIMATION}[ - ]${NC} YouLinux - YouTube downloader" ;;
+            10) echo -ne "\r ${ANIMATION}[ ▸ ]${NC} YouLinux - YouTube downloader" ;;
+            11) echo -ne "\r ${ANIMATION}[ ► ]${NC} YouLinux - YouTube downloader" ;;
+            12) echo -ne "\r ${ANIMATION}[ ▶ ]${NC} YouLinux - YouTube downloader" ;;
+        esac
+	j=$[j+1]
+        sleep 0.06 # Step-to-step interval
+    done
+echo -e "\e[1A\r ${ANIMATION}[ ▶ ]${NC} YouLinux - YouTube downloader\n             ${ERRORc}Made by ${ANIMATION}[BuiXon ► code]${NC}\e[K\n"
+
+# ${NC}
+# ${ANIMATION}
+# ${INFO}[INFO]
+# ${INFOc}
+# ${ERROR}[ERROR]
+# ${ERRORc}
+# ${SUCCESS}[SUCCESS]
+# ${SUCCESSc}
+# ${CONTENT}[CONTENT]
+# ${CONTENTc}
+# ${LINK}[LINK]
+# ${LINKc}
+
+### FUNCTIONS
+
+# Trap SIGINT (CTRL+C)
+trap 'echo -e "\e[?25h\r ${INFO}[INFO]: Caught SIGINT! Stopping downloads... ${NC}\n"; for pid in "${PIDS[@]}"; do kill -9 "$pid" &>/dev/null; done; exit 1' SIGINT
+
+# Help and usage
+show_help() {
+    echo -e "${ANIMATION}[ABOUT]${NC}${INFO} The $(basename $0) script is used to download audio/video materials from YouTube using Python, Bash and Coreutils built-ins."
+
+    echo
+    echo -e "${ANIMATION}[USAGE]${NC}${INFOc} $(basename $0) [-a|-v] [-u|-up|-f] [-c] [-d] [-o]"
+    echo
+    echo -e "${ANIMATION}[OPTIONS]${NC}${INFOc}"
+    echo -e "  ${INFO}-a  --audio${INFOc}                Set the output format to mp3 audio. ${ERRORc}(Cannot be combined with -v)"
+    echo -e "  ${INFO}-v  --video${INFOc}                Set the output format to webm/mp4 video. ${ERRORc}(Cannot be combined with -a)"
+    echo -e "  ${INFO}-u  --url <URL>${INFOc}            Set the input URL to the resource. ${ERRORc}(Cannot be combined with -up or -f)"
+    echo -e "  ${INFO}-up --url-playlist <URL>${INFOc}   Set the input URL to the entire playlist. ${ERRORc}(Cannot be combined with -u or -f)"
+    echo -e "  ${INFO}-f  --file <FILE>${INFOc}          Set the file from which URLs will be read. ${ERRORc}(Cannot be combined with -u or -up)"
+    echo -e "  ${INFO}-c  --cookies <PROVIDER>${INFOc}   Set the browser from which it will get cookies for authorization. ${SUCCESSc}(Optional)"
+    echo -e "  ${INFO}-d  --directory <DIRNAME>${INFOc}  Set the location to which it will save files. ${SUCCESSc}(Optional, default: PWD)"
+    echo -e "  ${INFO}-o  --output <NAME>${INFOc}        Set the file name or the output file name pattern. ${SUCCESSc}(Optional)"
+    echo -e "  ${INFO}-h  --help${INFOc}                 Display help and usage. ${SUCCESSc}(Exactly what you see :))"
+    echo
+    echo -e "${ANIMATION}[EXAMPLES]${NC}${INFOc}"
+    echo -e "  ${INFO}$(basename $0) -v -u https://youtube.com/example -d /path/to/dir${INFOc}\n  Downloads a video from the link https://youtube.com/example to the catalog /path/to/dir/youtube_name.webm."
+    echo -e "  ${INFO}$(basename $0) -a -f file.txt -c firefox -o my_fav_music${INFOc}\n  Downloads audio from links from file to ./my_fav_musicXY.mp3 using Firefox cookies. XY is an index of names (01-99)."
+    echo -e "  ${INFO}$(basename $0) -a -up https://youtube.com/playlist -o abc${INFOc}\n  Downloads audio from a playlist https://youtube.com/playlist to ./abcXY.mp3. XY is an index of names (01-99)."
+    echo
+    echo -e "${ANIMATION}[NOTES]${NC}${INFOc}"
+    echo -e "  ${INFO}Application of -c --cookie parameter:${INFOc}\n  This parameter sets from which the installed browsers of the YouTube cookies needed, among others to download materials with age restrictions.\n  The script is not able to check whether the correct data is provided. If the wrong option is provided, the script may not work."
+    echo -e "  ${INFO}What if the script does not work?:${INFOc}\n  The following version of the script is a beta version. In case of problems, I earn in touch: ${SUCCESSc}support@burixon.com.pl${INFOc}.\n  The script may stop working when you updated YouTube resources, which I have no influence on."
+    echo -e "  ${INFO}Gratitude and support:${INFOc}\n  If the script is useful, you can support me: ${SUCCESSc}https://burixon.com.pl/donate/${INFOc}.\n  After going to my website, click the cup ;)"
+    echo -e "\e[?25h"
+}
+
+# Check dependencies
+REQUIRED_PKG=("python" "dos2unix" "ffmpeg" "cat" "pip") # Importatnt commands
+for PKG in "${REQUIRED_PKG[@]}"; do
+	if ! command -v "$PKG" &> /dev/null; then
+		echo -e "\e[?25h ${ERROR}[ERROR]: ${ERRORc}Command \"$PKG\" not found! ${NC}\e[K\n" >&2
+		exit 1
+	fi
+done
+
+command -v yt-dlp >/dev/null 2>&1 || { # Main package
+	echo -e " ${INFO}[INFO]: Installing dependencies... ${NC}\n"
+	pip install --quiet yt-dlp &>/dev/null  && echo -e " ${SUCCESS}[SUCCESS]: Directory created successfully. ${NC}\n" || { echo -e " ${ERROR}[ERROR]: ${ERRORc}Cannot install dependent package. ${NC}\n\e[?25h"; exit 1; }
+}
+
+# Amination
+show_progress() {
+    echo 
+    local step="$1"
+    local pid="$2"
+    local i=0
+
+    echo -e " ${ANIMATION}[...] $step\e[1A"
+
+# ▸►▶▹▻▷ I am lazy :))) I want to have it near my hand.
+    while kill -0 "$pid" 2>/dev/null; do
+        i=$(( (i+1) % 12 ))
+        case $i in
+            0) echo -ne "\r ${ANIMATION}[ ▶ ]${NC} $step..." ;;
+            1) echo -ne "\r ${ANIMATION}[ ► ]${NC} $step.. " ;;
+            2) echo -ne "\r ${ANIMATION}[ ▸ ]${NC} $step.  " ;;
+            3) echo -ne "\r ${ANIMATION}[ - ]${NC} $step   " ;;
+            4) echo -ne "\r ${ANIMATION}[ ▹ ]${NC} $step.  " ;;
+            5) echo -ne "\r ${ANIMATION}[ ▻ ]${NC} $step.. " ;;
+            6) echo -ne "\r ${ANIMATION}[ ▷ ]${NC} $step..." ;;
+            7) echo -ne "\r ${ANIMATION}[ ▻ ]${NC} $step.. " ;;
+            8) echo -ne "\r ${ANIMATION}[ ▹ ]${NC} $step.  " ;;
+            9) echo -ne "\r ${ANIMATION}[ - ]${NC} $step   " ;;
+            10) echo -ne "\r ${ANIMATION}[ ▸ ]${NC} $step.  " ;;
+            11) echo -ne "\r ${ANIMATION}[ ► ]${NC} $step.. " ;;
+        esac
+        sleep 0.12 # Step-to-step interval
+    done
+    echo -ne "\r"
+}
+
+# Generate numeric indexes
+get_next_index() {
+    local target_dir="$1"
+    local base_name="$2"
+    local ext="$3"
+    local counter=1
+
+    while [[ -f "${target_dir}/${base_name}$(printf "%02d" "$counter").${ext}" ]]; do
+        ((counter++))
+    done
+
+    new_index=$(printf "%02d" "$counter")
+
+    if [[ "$new_index" =~ ^0([1-9]+)$ ]]; then # Helps a lot, because printf thinks we need octal values...
+        new_index="${BASH_REMATCH[1]}"
+    fi
+
+    echo "$new_index"
+}
+
+# Main download function
+download_file() {
+    local url="$1"
+    local output_format="$2"
+    local target_dir="$3"
+    local base_name="$4"
+    local ext="$5"
+    local is_playlist="$6"
+    local finalize="$7"
+
+    local output_file
+
+	if [[ -n $base_name ]]; then # Setting output filename
+		if [[ $is_playlist -eq 1 ]]; then
+			output_file="${target_dir}/${base_name}%(playlist_index)s.${ext}" # Custom name with index.
+		else
+			output_file="${target_dir}/${base_name}.%(ext)s" # Custom name w/o index.
+		fi
+	else
+		if [[ $is_playlist -eq 1 ]]; then
+			output_file="%(title)s%(playlist_index)s.${ext}" # Original name with index.
+		else
+			output_file="%(title)s.${ext}" # Original name w/o index.
+		fi
+	fi
+
+    echo -e " ${LINK}[URL]:  ${LINKc} \n$url ${NC}\n"
+
+    echo -e " ${CONTENT}[CONTENT]:  ${CONTENTc}"
+    titles=$(yt-dlp $(echo "$cookies ")--get-title $url 2>/dev/null | tee /dev/tty)
+
+    if [[ -z $titles ]]; then # Empty link :(((
+	echo -e "\n ${ERROR}[ERROR]: ${ERRORc}Invalid URL ${NC}\n\e[?25h"
+	show_help
+	exit 1
+    fi
+
+    yt-dlp $(echo "$cookies ")$output_format --output "$output_file" "$url" &>/dev/null &
+    PIDS+=($!)
+
+    show_progress "Downloading file" $! # Showing animation
+    wait $!
+
+    kill -9 "$!" &>/dev/null
+    echo -ne "\r ${SUCCESS}[SUCCESS]:  ${SUCCESSc}File successfully saved in: $target_dir ${NC}" && echo -e "\n" # End animation; success
+
+    if [[ $? -ne 0 ]]; then
+        echo -ne "\r ${ERROR}[ERROR]: ${ERRORc}Download failed for $url.\e[?25h\e[K\n ${NC}" >&2 && echo -e "\n" # Error :( sad...
+	show_help
+        exit 1
+    fi
+
+    if [[ $finalize -eq 1 ]]; then
+	echo -en "\e[?25h"
+        exit 0
+    fi
+
+}
+
+# Create target directory
+create_directory() {
+    local dir="$1"
+    if [[ ! -d "$dir" ]]; then
+        echo -e " ${INFO}[INFO]:  ${INFOc}Directory $dir does not exist. Creating it..."
+        mkdir -p "$dir" &>/dev/null && echo -e " ${SUCCESS}[SUCCESS]:  ${SUCCESSc}Directory created successfully. ${NC}\n" || { echo -e " ${ERROR}[ERROR]: ${ERRORc}Cannot create directry \"$dir\" ${NC}\n\e[?25h"; exit 1; }
+    fi
+}
+
+# Function for file input
+download_from_file() {
+    local file="$1"
+    local output_format="$2"
+    local directory="$3"
+    local output_name="$4"
+    local ext="$5"
+
+
+    if [[ ! -f "$file" ]]; then
+	echo -e " ${ERROR}[ERROR]: ${ERRORc}File $file does not exist. ${NC}\n\e[?25h" >&2 # Checking if file contains anything
+	rmdir $directory &>/dev/null # Remove new directory if empty.
+	exit 1
+    fi
+
+    echo "" >> $file
+
+    while IFS= read -r line; do
+        [[ -z $line ]] && continue
+        if [[ -n $output_name ]]; then # Setting output filename
+            counter=$(get_next_index "$directory" "$output_name" "$ext")
+            download_file "$line" "$output_format" "$directory" "${output_name}$(printf "%02d" $counter)" "$ext" 0
+        else
+            download_file "$line" "$output_format" "$directory" "$(yt-dlp $(echo "$cookies ")--get-title "$line" 2>/dev/null)" "$ext" 0
+        fi
+    done < "$file"
+
+}
+
+### MAIN LOGIC
+
+# Checking parameters
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -a|--audio)
+	    # Autio type -- download audio in mp3 format.
+            [[ $video_flag -eq 1 ]] && echo -e " ${ERROR}[ERROR]: ${ERRORc}-a and -v are mutually exclusive. ${NC}\n\e[?25h" >&2 && show_help && exit 1
+            audio_flag=1
+            ext="mp3"
+            ;;
+        -v|--video)
+	    # Video type -- download video in webm format.
+            [[ $audio_flag -eq 1 ]] && echo -e " ${ERROR}[ERROR]: ${ERRORc}-a and -v are mutually exclusive. ${NC}\n\e[?25h" >&2 && show_help && exit 1
+            video_flag=1
+            ext="webm"
+            ;;
+        -o|--output)
+	    # Filename -- set output filename/filename pattern.
+            shift
+            output_name="$1"
+            ;;
+        -u|--url)
+	    # Input URL -- specify, what to download. (single video)
+            [[ -n $playlist_url || -n $file ]] && echo -e " ${ERROR}[ERROR]: ${ERRORc}-u, -up, and -f are mutually exclusive. ${NC}\n\e[?25h" && show_help && exit 1
+            url="$2"
+            is_playlist=0
+            shift
+            ;;
+        -up|--playlist)
+	    # Input URL -- specify, what to download. (entire playlist)
+            [[ -n $url || -n $file ]] && echo -e " ${ERROR}[ERROR]: ${ERRORc}-u, -up, and -f are mutually exclusive. ${NC}\n\e[?25h" && show_help && exit 1
+            playlist_url="$2"
+            is_playlist=1
+            shift
+            ;;
+        -f|--file)
+	    # Input file -- specify, what to download. (from URLs in file)
+            [[ -n $url || -n $playlist_url ]] && echo -e " ${ERROR}[ERROR]: ${ERRORc}-u, -up, and -f are mutually exclusive. ${NC}\n\e[?25h" >&2 && show_help && exit 1
+            file="$2"
+            shift
+            ;;
+        -d|--directory)
+	    # Output dir -- specify, where download to.
+            shift
+            directory="$1"
+            [[ -z "$directory" ]] && echo -e " ${ERROR}[ERROR]: ${ERRORc}-d directory is required. ${NC}\n\e[?25h" >&2 && show_help && exit 1
+	    if [[ $directory == -* ]]; then
+		echo -e " ${ERROR}[ERROR]: ${ERRORc}enter correct dirname ${NC}\n\e[?25h"
+		exit 1
+	    fi
+            ;;
+	-c|--cookies)
+	    # Cookies -- if You want to see something +18 ;)
+	    if [[ -n $2 ]]; then
+	    	provider="$2"
+	    	cookies="--cookies-from-browser $2"
+	    else
+		echo -e " ${ERROR}[ERROR]: ${ERRORc}You must specify browser ${NC}\n\e[?25h"
+		exit 1
+	    fi
+	    shift
+	    ;;
+	-h|--help)
+	    show_help
+	    exit
+	    ;;
+        *)
+	    # :P
+            echo -e " ${ERROR}[ERROR]: ${ERRORc}Unknown argument $1. ${NC}\n\e[?25h" >&2 && show_help && exit 1
+            ;;
+    esac
+    shift
+done
+
+# Checking colisions
+[[ $audio_flag -eq 0 && $video_flag -eq 0 ]] && echo -e " ${ERROR}[ERROR]: ${ERRORc}You must specify either -a or -v. ${NC}\n\e[?25h" >&2 && show_help && exit 1
+[[ -z $directory ]] && echo -e " ${ERROR}[ERROR]: ${ERRORc}-d is required to specify the target directory. ${NC}\n\e[?25h" >&2 && show_help && exit 1
+
+# Creating target directory
+create_directory "$directory"
+
+# Setting output filetype
+output_format=""
+if [[ $audio_flag -eq 1 ]]; then
+    output_format="-x --audio-format mp3"
+elif [[ $video_flag -eq 1 ]]; then
+    output_format="-f bestvideo+bestaudio"
+fi
+
+# Settint downloading type
+if [[ -n $url ]]; then
+    if [[ -n $output_name ]]; then
+        download_file "$url" "$output_format" "$directory" "$output_name" "$ext" 0 1
+    else
+        download_file "$url" "$output_format" "$directory" "$(yt-dlp $(echo "$cookies ")--get-title "$url" 2>/dev/null)" "$ext" 0 1
+    fi
+elif [[ -n $playlist_url ]]; then
+    if [[ -n $output_name ]]; then
+        download_file "$playlist_url" "$output_format" "$directory" "$output_name" "$ext" 1 1
+    else
+	playlist_name=""
+        download_file "$playlist_url" "$output_format" "$directory" "$playlist_name" "$ext" 1 1
+    fi
+elif [[ -n $file ]]; then
+    download_from_file "$file" "$output_format" "$directory" "$output_name" "$ext"
+else
+    echo -e " ${ERROR}[ERROR]: ${ERRORc}No URL.\e[?25h" >&2 && show_help && exit 1
+fi
+
+echo -en "\e[?25h"
